@@ -517,7 +517,11 @@ class SphinxQL
                 }
 
                 if (in_array(strtoupper($filter['operator']), array('IN', 'NOT IN'), true)) {
-                    $query .= strtoupper($filter['operator']).' ('.implode(', ', $this->getConnection()->quoteArr($filter['value'])).') ';
+                    if (is_string($filter['value']) && preg_match('/^@\w+$/', $filter['value'])) {
+                        $query .= strtoupper($filter['operator']).' '.$filter['value'].' ';
+                    } else {
+                        $query .= strtoupper($filter['operator']).' ('.implode(', ', $this->getConnection()->quoteArr($filter['value'])).') ';
+                    }
                 } else {
                     $query .= $filter['operator'].' '.$this->getConnection()->quote($filter['value']).' ';
                 }
