@@ -1,14 +1,16 @@
 <?php
 
 namespace Foolz\SphinxQL;
+
 use Foolz\SphinxQL\Drivers\ConnectionInterface;
-use Foolz\SphinxQL\Exception\SphinxQLException;
 use Foolz\SphinxQL\Drivers\MultiResultSetInterface;
 use Foolz\SphinxQL\Drivers\ResultSetInterface;
+use Foolz\SphinxQL\Exception\ConnectionException;
+use Foolz\SphinxQL\Exception\DatabaseException;
+use Foolz\SphinxQL\Exception\SphinxQLException;
 
 /**
  * Query Builder class for SphinxQL statements.
- * @package Foolz\SphinxQL
  */
 class SphinxQL
 {
@@ -17,35 +19,35 @@ class SphinxQL
      *
      * @var ConnectionInterface
      */
-    protected $connection = null;
+    protected $connection;
 
     /**
      * The last result object.
      *
      * @var array
      */
-    protected $last_result = null;
+    protected $last_result;
 
     /**
      * The last compiled query.
      *
      * @var string
      */
-    protected $last_compiled = null;
+    protected $last_compiled;
 
     /**
      * The last chosen method (select, insert, replace, update, delete).
      *
      * @var string
      */
-    protected $type = null;
+    protected $type;
 
     /**
      * An SQL query that is not yet executed or "compiled"
      *
      * @var string
      */
-    protected $query = null;
+    protected $query;
 
     /**
      * Array of select elements that will be comma separated.
@@ -83,6 +85,13 @@ class SphinxQL
     protected $group_by = array();
 
     /**
+     * When not null changes 'GROUP BY' to 'GROUP N BY'
+     *
+     * @var null|int
+     */
+    protected $group_n_by;
+
+    /**
      * ORDER BY array
      *
      * @var array
@@ -108,21 +117,21 @@ class SphinxQL
      *
      * @var null|int
      */
-    protected $offset = null;
+    protected $offset;
 
     /**
      * When not null it adds a limit
      *
      * @var null|int
      */
-    protected $limit = null;
+    protected $limit;
 
     /**
      * Value of INTO query for INSERT or REPLACE
      *
      * @var null|string
      */
-    protected $into = null;
+    protected $into;
 
     /**
      * Array of columns for INSERT or REPLACE
@@ -164,7 +173,7 @@ class SphinxQL
      *
      * @var null|SphinxQL
      */
-    protected $queue_prev = null;
+    protected $queue_prev;
 
     /**
      * An array of escaped characters for escapeMatch()
@@ -172,20 +181,20 @@ class SphinxQL
      */
     protected $escape_full_chars = array(
         '\\' => '\\\\',
-        '(' => '\(',
-        ')' => '\)',
-        '|' => '\|',
-        '-' => '\-',
-        '!' => '\!',
-        '@' => '\@',
-        '~' => '\~',
-        '"' => '\"',
-        '&' => '\&',
-        '/' => '\/',
-        '^' => '\^',
-        '$' => '\$',
-        '=' => '\=',
-        '<' => '\<',
+        '('  => '\(',
+        ')'  => '\)',
+        '|'  => '\|',
+        '-'  => '\-',
+        '!'  => '\!',
+        '@'  => '\@',
+        '~'  => '\~',
+        '"'  => '\"',
+        '&'  => '\&',
+        '/'  => '\/',
+        '^'  => '\^',
+        '$'  => '\$',
+        '='  => '\=',
+        '<'  => '\<',
     );
 
     /**
@@ -194,35 +203,35 @@ class SphinxQL
      */
     protected $escape_half_chars = array(
         '\\' => '\\\\',
-        '(' => '\(',
-        ')' => '\)',
-        '!' => '\!',
-        '@' => '\@',
-        '~' => '\~',
-        '&' => '\&',
-        '/' => '\/',
-        '^' => '\^',
-        '$' => '\$',
-        '=' => '\=',
-        '<' => '\<',
+        '('  => '\(',
+        ')'  => '\)',
+        '!'  => '\!',
+        '@'  => '\@',
+        '~'  => '\~',
+        '&'  => '\&',
+        '/'  => '\/',
+        '^'  => '\^',
+        '$'  => '\$',
+        '='  => '\=',
+        '<'  => '\<',
     );
 
-    public function __construct(ConnectionInterface $connection = null, $static = false)
+    /**
+     * @param ConnectionInterface|null $connection
+     */
+    public function __construct(ConnectionInterface $connection = null)
     {
         $this->connection = $connection;
     }
-
+    
     /**
-     * Creates and setups a SphinxQL object
+     * Sets Query Type
      *
-     * @param ConnectionInterface $connection
-     *
-     * @return SphinxQL
      */
-    public static function create(ConnectionInterface $connection)
+    public function setType(string $type)
     {
-        return new static($connection);
-    }
+        return $this->type = $type;
+    }    
 
     /**
      * Returns the currently attached connection
@@ -244,6 +253,7 @@ class SphinxQL
      * @param string $string The string to keep unaltered
      *
      * @return Expression The new Expression
+     * @todo make non static
      */
     public static function expr($string = '')
     {
@@ -254,6 +264,9 @@ class SphinxQL
      * Runs the query built
      *
      * @return ResultSetInterface The result of the query
+     * @throws DatabaseException
+     * @throws ConnectionException
+     * @throws SphinxQLException
      */
     public function execute()
     {
@@ -266,6 +279,8 @@ class SphinxQL
      *
      * @return MultiResultSetInterface The array of results
      * @throws SphinxQLException In case no query is in queue
+     * @throws Exception\DatabaseException
+     * @throws ConnectionException
      */
     public function executeBatch()
     {
@@ -334,7 +349,7 @@ class SphinxQL
      *
      * @param SphinxQL $query The object to set as previous
      *
-     * @return SphinxQL
+     * @return self
      */
     public function setQueuePrev($query)
     {
@@ -365,6 +380,8 @@ class SphinxQL
 
     /**
      * Begins transaction
+     * @throws DatabaseException
+     * @throws ConnectionException
      */
     public function transactionBegin()
     {
@@ -373,6 +390,8 @@ class SphinxQL
 
     /**
      * Commits transaction
+     * @throws DatabaseException
+     * @throws ConnectionException
      */
     public function transactionCommit()
     {
@@ -381,6 +400,8 @@ class SphinxQL
 
     /**
      * Rollbacks transaction
+     * @throws DatabaseException
+     * @throws ConnectionException
      */
     public function transactionRollback()
     {
@@ -390,7 +411,10 @@ class SphinxQL
     /**
      * Runs the compile function
      *
-     * @return SphinxQL
+     * @return self
+     * @throws ConnectionException
+     * @throws DatabaseException
+     * @throws SphinxQLException
      */
     public function compile()
     {
@@ -416,6 +440,9 @@ class SphinxQL
         return $this;
     }
 
+    /**
+     * @return self
+     */
     public function compileQuery()
     {
         $this->last_compiled = $this->query;
@@ -428,6 +455,8 @@ class SphinxQL
      * Used by: SELECT, DELETE, UPDATE
      *
      * @return string The compiled MATCH
+     * @throws Exception\ConnectionException
+     * @throws Exception\DatabaseException
      */
     public function compileMatch()
     {
@@ -468,6 +497,7 @@ class SphinxQL
             $matched = implode(' ', $matched);
             $query .= $this->getConnection()->escape(trim($matched)).') ';
         }
+
         return $query;
     }
 
@@ -477,6 +507,8 @@ class SphinxQL
      * Used by: SELECT, DELETE, UPDATE
      *
      * @return string The compiled WHERE
+     * @throws ConnectionException
+     * @throws DatabaseException
      */
     public function compileWhere()
     {
@@ -498,6 +530,13 @@ class SphinxQL
         return $query;
     }
 
+    /**
+     * @param array $filter
+     *
+     * @return string
+     * @throws ConnectionException
+     * @throws DatabaseException
+     */
     public function compileFilterCondition($filter)
     {
         $query = '';
@@ -534,7 +573,10 @@ class SphinxQL
     /**
      * Compiles the statements for SELECT
      *
-     * @return SphinxQL
+     * @return self
+     * @throws ConnectionException
+     * @throws DatabaseException
+     * @throws SphinxQLException
      */
     public function compileSelect()
     {
@@ -565,7 +607,11 @@ class SphinxQL
         $query .= $this->compileMatch().$this->compileWhere();
 
         if (!empty($this->group_by)) {
-            $query .= 'GROUP BY '.implode(', ', $this->group_by).' ';
+            $query .= 'GROUP ';
+            if ($this->group_n_by !== null) {
+                $query .= $this->group_n_by.' ';
+            }
+            $query .= 'BY '.implode(', ', $this->group_by).' ';
         }
 
         if (!empty($this->within_group_order_by)) {
@@ -671,7 +717,9 @@ class SphinxQL
     /**
      * Compiles the statements for INSERT or REPLACE
      *
-     * @return SphinxQL
+     * @return self
+     * @throws ConnectionException
+     * @throws DatabaseException
      */
     public function compileInsert()
     {
@@ -691,7 +739,7 @@ class SphinxQL
 
         if (!empty($this->values)) {
             $query .= 'VALUES ';
-            $query_sub = '';
+            $query_sub = array();
 
             foreach ($this->values as $value) {
                 $query_sub[] = '('.implode(', ', $this->getConnection()->quoteArr($value)).')';
@@ -709,7 +757,9 @@ class SphinxQL
     /**
      * Compiles the statements for UPDATE
      *
-     * @return SphinxQL
+     * @return self
+     * @throws ConnectionException
+     * @throws DatabaseException
      */
     public function compileUpdate()
     {
@@ -749,7 +799,9 @@ class SphinxQL
     /**
      * Compiles the statements for DELETE
      *
-     * @return SphinxQL
+     * @return self
+     * @throws ConnectionException
+     * @throws DatabaseException
      */
     public function compileDelete()
     {
@@ -759,6 +811,9 @@ class SphinxQL
             $query .= 'FROM '.$this->from[0].' ';
         }
 
+        if (!empty($this->match)) {
+            $query .= $this->compileMatch();
+        }
         if (!empty($this->where)) {
             $query .= $this->compileWhere();
         }
@@ -774,7 +829,7 @@ class SphinxQL
      *
      * @param string $sql A SphinxQL query to execute
      *
-     * @return SphinxQL
+     * @return self
      */
     public function query($sql)
     {
@@ -803,7 +858,7 @@ class SphinxQL
      *
      * @param array|string $columns Array or multiple string arguments containing column names
      *
-     * @return SphinxQL
+     * @return self
      */
     public function select($columns = null)
     {
@@ -827,7 +882,7 @@ class SphinxQL
      *
      * @param array|string $columns Array or multiple string arguments containing column names
      *
-     * @return SphinxQL
+     * @return self
      */
     public function setSelect($columns = null)
     {
@@ -853,7 +908,7 @@ class SphinxQL
     /**
      * Activates the INSERT mode
      *
-     * @return SphinxQL
+     * @return self
      */
     public function insert()
     {
@@ -866,7 +921,7 @@ class SphinxQL
     /**
      * Activates the REPLACE mode
      *
-     * @return SphinxQL
+     * @return self
      */
     public function replace()
     {
@@ -881,7 +936,7 @@ class SphinxQL
      *
      * @param string $index The index to update into
      *
-     * @return SphinxQL
+     * @return self
      */
     public function update($index)
     {
@@ -895,7 +950,7 @@ class SphinxQL
     /**
      * Activates the DELETE mode
      *
-     * @return SphinxQL
+     * @return self
      */
     public function delete()
     {
@@ -911,7 +966,7 @@ class SphinxQL
      *
      * @param array $array An array of indexes to use
      *
-     * @return SphinxQL
+     * @return self
      */
     public function from($array = null)
     {
@@ -929,11 +984,11 @@ class SphinxQL
     /**
      * MATCH clause (Sphinx-specific)
      *
-     * @param mixed    $column The column name (can be array, string, Closure, or Match)
-     * @param string   $value  The value
-     * @param boolean  $half  Exclude ", |, - control characters from being escaped
+     * @param mixed  $column The column name (can be array, string, Closure, or Match)
+     * @param string $value  The value
+     * @param bool   $half   Exclude ", |, - control characters from being escaped
      *
-     * @return SphinxQL
+     * @return self
      */
     public function match($column, $value = null, $half = false)
     {
@@ -966,11 +1021,12 @@ class SphinxQL
      *    // WHERE column BETWEEN 'value1' AND 'value2'
      *    // WHERE example BETWEEN 10 AND 100
      *
-     * @param string   $column   The column name
-     * @param string   $operator The operator to use
-     * @param string   $value    The value to check against
+     * @param string                                      $column   The column name
+     * @param Expression|string|null|bool|array|int|float $operator The operator to use (if value is not null, you can
+     *      use only string)
+     * @param Expression|string|null|bool|array|int|float $value    The value to check against
      *
-     * @return SphinxQL
+     * @return self
      */
     public function where($column, $operator, $value = null)
     {
@@ -980,9 +1036,9 @@ class SphinxQL
         }
 
         $this->where[] = array(
-            'column' => $column,
+            'column'   => $column,
             'operator' => $operator,
-            'value' => $value
+            'value'    => $value,
         );
 
         return $this;
@@ -994,11 +1050,26 @@ class SphinxQL
      *
      * @param string $column A column to group by
      *
-     * @return SphinxQL
+     * @return self
      */
     public function groupBy($column)
     {
         $this->group_by[] = $column;
+
+        return $this;
+    }
+
+    /**
+     * GROUP N BY clause (SphinxQL-specific)
+     * Changes 'GROUP BY' into 'GROUP N BY'
+     *
+     * @param int $n Number of items per group
+     *
+     * @return self
+     */
+    public function groupNBy($n)
+    {
+        $this->group_n_by = (int) $n;
 
         return $this;
     }
@@ -1011,7 +1082,7 @@ class SphinxQL
      * @param string $column    The column to group by
      * @param string $direction The group by direction (asc/desc)
      *
-     * @return SphinxQL
+     * @return self
      */
     public function withinGroupOrderBy($column, $direction = null)
     {
@@ -1040,11 +1111,11 @@ class SphinxQL
      *    // HAVING column BETWEEN 'value1' AND 'value2'
      *    // HAVING example BETWEEN 10 AND 100
      *
-     * @param string   $column   The column name
-     * @param string   $operator The operator to use
-     * @param string   $value    The value to check against
+     * @param string $column   The column name
+     * @param string $operator The operator to use
+     * @param string $value    The value to check against
      *
-     * @return SphinxQL The current object
+     * @return self
      */
     public function having($column, $operator, $value = null)
     {
@@ -1054,9 +1125,9 @@ class SphinxQL
         }
 
         $this->having = array(
-            'column' => $column,
+            'column'   => $column,
             'operator' => $operator,
-            'value' => $value
+            'value'    => $value,
         );
 
         return $this;
@@ -1069,7 +1140,7 @@ class SphinxQL
      * @param string $column    The column to order on
      * @param string $direction The ordering direction (asc/desc)
      *
-     * @return SphinxQL
+     * @return self
      */
     public function orderBy($column, $direction = null)
     {
@@ -1085,12 +1156,13 @@ class SphinxQL
      * @param int      $offset Offset if $limit is specified, else limit
      * @param null|int $limit  The limit to set, null for no limit
      *
-     * @return SphinxQL
+     * @return self
      */
     public function limit($offset, $limit = null)
     {
         if ($limit === null) {
             $this->limit = (int) $offset;
+
             return $this;
         }
 
@@ -1105,7 +1177,7 @@ class SphinxQL
      *
      * @param int $offset The offset
      *
-     * @return SphinxQL
+     * @return self
      */
     public function offset($offset)
     {
@@ -1118,10 +1190,10 @@ class SphinxQL
      * OPTION clause (SphinxQL-specific)
      * Used by: SELECT
      *
-     * @param string $name  Option name
-     * @param string $value Option value
+     * @param string                                      $name  Option name
+     * @param Expression|array|string|int|bool|float|null $value Option value
      *
-     * @return SphinxQL
+     * @return self
      */
     public function option($name, $value)
     {
@@ -1136,7 +1208,7 @@ class SphinxQL
      *
      * @param string $index The index to insert/replace into
      *
-     * @return SphinxQL
+     * @return self
      */
     public function into($index)
     {
@@ -1152,7 +1224,7 @@ class SphinxQL
      *
      * @param array $array The array of columns
      *
-     * @return SphinxQL
+     * @return self
      */
     public function columns($array = array())
     {
@@ -1172,7 +1244,7 @@ class SphinxQL
      *
      * @param array $array The array of values matching the columns from $this->columns()
      *
-     * @return SphinxQL
+     * @return self
      */
     public function values($array)
     {
@@ -1192,7 +1264,7 @@ class SphinxQL
      * @param string $column The column name
      * @param string $value  The value
      *
-     * @return SphinxQL
+     * @return self
      */
     public function value($column, $value)
     {
@@ -1212,7 +1284,7 @@ class SphinxQL
      *
      * @param array $array Array of key-values
      *
-     * @return SphinxQL
+     * @return self
      */
     public function set($array)
     {
@@ -1232,7 +1304,8 @@ class SphinxQL
      * Used in: INSERT, REPLACE, UPDATE
      *
      * @param Facet $facet
-     * @return SphinxQL
+     *
+     * @return self
      */
     public function facet($facet)
     {
@@ -1246,7 +1319,7 @@ class SphinxQL
      *
      * @param array $array The array of characters to escape
      *
-     * @return SphinxQL The escaped characters
+     * @return self
      */
     public function setFullEscapeChars($array = array())
     {
@@ -1262,7 +1335,7 @@ class SphinxQL
      *
      * @param array $array The array of characters to escape
      *
-     * @return SphinxQL The escaped characters
+     * @return self
      */
     public function setHalfEscapeChars($array = array())
     {
@@ -1345,7 +1418,7 @@ class SphinxQL
     /**
      * Clears the existing query build for new query when using the same SphinxQL instance.
      *
-     * @return SphinxQL
+     * @return self
      */
     public function reset()
     {
@@ -1355,6 +1428,7 @@ class SphinxQL
         $this->where = array();
         $this->match = array();
         $this->group_by = array();
+        $this->group_n_by = null;
         $this->within_group_order_by = array();
         $this->having = array();
         $this->order_by = array();
@@ -1369,6 +1443,9 @@ class SphinxQL
         return $this;
     }
 
+    /**
+     * @return self
+     */
     public function resetWhere()
     {
         $this->where = array();
@@ -1376,6 +1453,9 @@ class SphinxQL
         return $this;
     }
 
+    /**
+     * @return self
+     */
     public function resetMatch()
     {
         $this->match = array();
@@ -1383,13 +1463,20 @@ class SphinxQL
         return $this;
     }
 
+    /**
+     * @return self
+     */
     public function resetGroupBy()
     {
         $this->group_by = array();
+        $this->group_n_by = null;
 
         return $this;
     }
 
+    /**
+     * @return self
+     */
     public function resetWithinGroupOrderBy()
     {
         $this->within_group_order_by = array();
@@ -1397,6 +1484,19 @@ class SphinxQL
         return $this;
     }
 
+    /**
+     * @return self
+     */
+    public function resetFacets()
+    {
+        $this->facets = array();
+
+        return $this;
+    }
+
+    /**
+     * @return self
+     */
     public function resetHaving()
     {
         $this->having = array();
@@ -1404,6 +1504,9 @@ class SphinxQL
         return $this;
     }
 
+    /**
+     * @return self
+     */
     public function resetOrderBy()
     {
         $this->order_by = array();
@@ -1411,6 +1514,9 @@ class SphinxQL
         return $this;
     }
 
+    /**
+     * @return self
+     */
     public function resetOptions()
     {
         $this->options = array();

@@ -2,15 +2,11 @@
 
 namespace Foolz\SphinxQL\Drivers;
 
+use Foolz\SphinxQL\Exception\ConnectionException;
 use Foolz\SphinxQL\Exception\DatabaseException;
 use Foolz\SphinxQL\Exception\SphinxQLException;
 use Foolz\SphinxQL\Expression;
 
-/**
- * Interface ConnectionInterface
- *
- * @package Foolz\SphinxQL
- */
 interface ConnectionInterface
 {
     /**
@@ -20,6 +16,7 @@ interface ConnectionInterface
      *
      * @return ResultSetInterface The result array or number of rows affected
      * @throws DatabaseException If the executed query produced an error
+     * @throws ConnectionException
      */
     public function query($query);
 
@@ -31,8 +28,9 @@ interface ConnectionInterface
      * @return MultiResultSetInterface The result array
      * @throws DatabaseException In case a query throws an error
      * @throws SphinxQLException In case the array passed is empty
+     * @throws ConnectionException
      */
-    public function multiQuery(Array $queue);
+    public function multiQuery(array $queue);
 
     /**
      * Escapes the input
@@ -41,24 +39,30 @@ interface ConnectionInterface
      *
      * @return string The escaped string
      * @throws DatabaseException If an error was encountered during server-side escape
+     * @throws ConnectionException
      */
     public function escape($value);
 
     /**
      * Adds quotes around values when necessary.
      *
-     * @param Expression|string $value The input string, eventually wrapped in an expression to leave it untouched
+     * @param Expression|string|null|bool|array|int|float $value The input string, eventually wrapped in an expression
+     *      to leave it untouched
      *
      * @return Expression|string|int The untouched Expression or the quoted string
+     * @throws DatabaseException
+     * @throws ConnectionException
      */
     public function quote($value);
 
     /**
      * Calls $this->quote() on every element of the array passed.
      *
-     * @param array $array The array of strings to quote
+     * @param array $array The array of elements to quote
      *
-     * @return array The array of quotes strings
+     * @return array The array of quotes elements
+     * @throws DatabaseException
+     * @throws ConnectionException
      */
-    public function quoteArr(Array $array = array());
+    public function quoteArr(array $array = array());
 }

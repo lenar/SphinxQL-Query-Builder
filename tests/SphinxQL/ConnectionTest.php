@@ -4,21 +4,20 @@ use Foolz\SphinxQL\Drivers\ConnectionInterface;
 use Foolz\SphinxQL\Expression;
 use Foolz\SphinxQL\Tests\TestUtil;
 
-class ConnectionTest extends PHPUnit_Framework_TestCase
+class ConnectionTest extends \PHPUnit\Framework\TestCase
 {
     /**
      * @var ConnectionInterface
      */
     private $connection = null;
 
-    public function setUp()
+    protected function setUp()
     {
         $this->connection = TestUtil::getConnectionDriver();
         $this->connection->setParams(array('host' => '127.0.0.1', 'port' => 9307));
-        $this->connection->silenceConnectionWarning(false);
     }
 
-    public function tearDown()
+    protected function tearDown()
     {
         $this->connection = null;
     }
@@ -98,21 +97,11 @@ class ConnectionTest extends PHPUnit_Framework_TestCase
     }
 
     /**
-     * @expectedException PHPUnit_Framework_Error_Warning
-     */
-    public function testConnectThrowsPHPException()
-    {
-        $this->connection->setParam('port', 9308);
-        $this->connection->connect();
-    }
-
-    /**
      * @expectedException Foolz\SphinxQL\Exception\ConnectionException
      */
     public function testConnectThrowsException()
     {
         $this->connection->setParam('port', 9308);
-        $this->connection->silenceConnectionWarning(true);
         $this->connection->connect();
     }
 
@@ -129,10 +118,12 @@ class ConnectionTest extends PHPUnit_Framework_TestCase
     {
         $encoding = mb_internal_encoding();
         $this->connection->connect();
+
         if (method_exists($this->connection, 'getInternalEncoding')) {
-		    $this->assertEquals($encoding, $this->connection->getInternalEncoding());
-		    $this->assertEquals('UTF-8', mb_internal_encoding());
+            $this->assertEquals($encoding, $this->connection->getInternalEncoding());
+            $this->assertEquals('UTF-8', mb_internal_encoding());
         }
+
         $this->connection->close();
         $this->assertEquals($encoding, mb_internal_encoding());
         $this->connection->getConnection();
@@ -192,7 +183,7 @@ class ConnectionTest extends PHPUnit_Framework_TestCase
     }
 
     /**
-     * @expectedException PHPUnit_Framework_Error_Warning
+     * @expectedException Foolz\SphinxQL\Exception\ConnectionException
      */
     public function testEscapeThrowsException()
     {

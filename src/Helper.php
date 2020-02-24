@@ -1,43 +1,26 @@
 <?php
 
 namespace Foolz\SphinxQL;
+
 use Foolz\SphinxQL\Drivers\ConnectionInterface;
 
 /**
  * SQL queries that don't require "query building"
  * These return a valid SphinxQL that can even be enqueued
- * @package Foolz\SphinxQL
  */
 class Helper
 {
     /**
      * @var ConnectionInterface
      */
-    public $connection;
-
-    protected function __construct(ConnectionInterface $connection)
-    {
-        $this->connection = $connection;
-    }
+    protected $connection;
 
     /**
      * @param ConnectionInterface $connection
-     *
-     * @return Helper
      */
-    public static function create(ConnectionInterface $connection)
+    public function __construct(ConnectionInterface $connection)
     {
-        return new static($connection);
-    }
-
-    /**
-     * Returns a Connection object setup in the construct
-     *
-     * @return ConnectionInterface
-     */
-    protected function getConnection()
-    {
-        return $this->connection;
+        $this->connection = $connection;
     }
 
     /**
@@ -47,7 +30,7 @@ class Helper
      */
     protected function getSphinxQL()
     {
-        return SphinxQL::create($this->getConnection());
+        return new SphinxQL($this->connection);
     }
 
     /**
@@ -68,6 +51,7 @@ class Helper
      * @param array $result The result of an executed query
      *
      * @return array Associative array with Variable_name as key and Value as value
+     * @todo make non static
      */
     public static function pairsToAssoc($result)
     {
@@ -114,10 +98,16 @@ class Helper
      * Runs query: SHOW TABLES
      *
      * @return SphinxQL A SphinxQL object ready to be ->execute();
+     * @throws Exception\ConnectionException
+     * @throws Exception\DatabaseException
      */
-    public function showTables()
+    public function showTables( $index )
     {
-        return $this->query('SHOW TABLES');
+        $queryAppend = '';
+        if ( ! empty( $index ) ) {
+            $queryAppend = ' LIKE ' . $this->connection->quote($index);
+        }
+        return $this->query( 'SHOW TABLES' . $queryAppend );
     }
 
     /**
@@ -133,11 +123,13 @@ class Helper
     /**
      * SET syntax
      *
-     * @param string  $name   The name of the variable
-     * @param mixed   $value  The value of the variable
-     * @param boolean $global True if the variable should be global, false otherwise
+     * @param string $name   The name of the variable
+     * @param mixed  $value  The value of the variable
+     * @param bool   $global True if the variable should be global, false otherwise
      *
      * @return SphinxQL A SphinxQL object ready to be ->execute();
+     * @throws Exception\ConnectionException
+     * @throws Exception\DatabaseException
      */
     public function setVariable($name, $value, $global = false)
     {
@@ -152,12 +144,12 @@ class Helper
         $query .= $name.' ';
 
         // user variables must always be processed as arrays
-        if ($user_var && ! is_array($value)) {
-            $query .= '= ('.$this->getConnection()->quote($value).')';
+        if ($user_var && !is_array($value)) {
+            $query .= '= ('.$this->connection->quote($value).')';
         } elseif (is_array($value)) {
-            $query .= '= ('.implode(', ', $this->getConnection()->quoteArr($value)).')';
+            $query .= '= ('.implode(', ', $this->connection->quoteArr($value)).')';
         } else {
-            $query .= '= '.$this->getConnection()->quote($value);
+            $query .= '= '.$this->connection->quote($value);
         }
 
         return $this->query($query);
@@ -166,25 +158,34 @@ class Helper
     /**
      * CALL SNIPPETS syntax
      *
-     * @param string $data    The document text (or documents) to search
-     * @param string $index
-     * @param string $query   Search query used for highlighting
-     * @param array  $options Associative array of additional options
+     * @param string|array $data    The document text (or documents) to search
+     * @param string       $index
+     * @param string       $query   Search query used for highlighting
+     * @param array        $options Associative array of additional options
      *
      * @return SphinxQL A SphinxQL object ready to be ->execute();
+     * @throws Exception\ConnectionException
+     * @throws Exception\DatabaseException
      */
     public function callSnippets($data, $index, $query, $options = array())
     {
-        array_unshift($options, $data, $index, $query);
+        $documents = array();
+        if (is_array($data)) {
+            $documents[] = '('.implode(', ', $this->connection->quoteArr($data)).')';
+        } else {
+            $documents[] = $this->connection->quote($data);
+        }
 
-        $arr = $this->getConnection()->quoteArr($options);
+        array_unshift($options, $index, $query);
+
+        $arr = $this->connection->quoteArr($options);
         foreach ($arr as $key => &$val) {
             if (is_string($key)) {
                 $val .= ' AS '.$key;
             }
         }
 
-        return $this->query('CALL SNIPPETS('.implode(', ', $arr).')');
+        return $this->query('CALL SNIPPETS('.implode(', ', array_merge($documents, $arr)).')');
     }
 
     /**
@@ -195,6 +196,8 @@ class Helper
      * @param null|string $hits
      *
      * @return SphinxQL A SphinxQL object ready to be ->execute();
+     * @throws Exception\ConnectionException
+     * @throws Exception\DatabaseException
      */
     public function callKeywords($text, $index, $hits = null)
     {
@@ -203,7 +206,7 @@ class Helper
             $arr[] = $hits;
         }
 
-        return $this->query('CALL KEYWORDS('.implode(', ', $this->getConnection()->quoteArr($arr)).')');
+        return $this->query('CALL KEYWORDS('.implode(', ', $this->connection->quoteArr($arr)).')');
     }
 
     /**
@@ -226,11 +229,13 @@ class Helper
      * @param string $so_name
      *
      * @return SphinxQL A SphinxQL object ready to be ->execute();
+     * @throws Exception\ConnectionException
+     * @throws Exception\DatabaseException
      */
     public function createFunction($udf_name, $returns, $so_name)
     {
         return $this->query('CREATE FUNCTION '.$udf_name.
-            ' RETURNS '.$returns.' SONAME '.$this->getConnection()->quote($so_name));
+            ' RETURNS '.$returns.' SONAME '.$this->connection->quote($so_name));
     }
 
     /**

@@ -4,7 +4,6 @@ namespace Foolz\SphinxQL;
 
 /**
  * Query Builder class for Match statements.
- * @package Foolz\SphinxQL
  */
 class Match
 {
@@ -13,7 +12,7 @@ class Match
      *
      * @var string
      */
-    protected $last_compiled = null;
+    protected $last_compiled;
 
     /**
      * List of match operations.
@@ -27,21 +26,14 @@ class Match
      *
      * @var SphinxQL
      */
-    protected $sphinxql = null;
-
-    public function __construct(SphinxQL $sphinxql)
-    {
-        $this->sphinxql = $sphinxql;
-    }
+    protected $sphinxql;
 
     /**
      * @param SphinxQL $sphinxql
-     *
-     * @return Match
      */
-    public static function create(SphinxQL $sphinxql)
+    public function __construct(SphinxQL $sphinxql)
     {
-        return new Match($sphinxql);
+        $this->sphinxql = $sphinxql;
     }
 
     /**
@@ -64,13 +56,16 @@ class Match
      *    $match->match($sub);
      *    // (a | b)
      *
-     * @param string|Match|Closure $keywords The text or expression to match.
+     * @param string|Match|\Closure $keywords The text or expression to match.
+     *
+     * @return $this
      */
     public function match($keywords = null)
     {
         if ($keywords !== null) {
             $this->tokens[] = array('MATCH' => $keywords);
         }
+
         return $this;
     }
 
@@ -84,12 +79,15 @@ class Match
      *    $match->match('test')->orMatch('case');
      *    // test | case
      *
-     * @param string|Match|Closure $keywords The text or expression to alternatively match.
+     * @param string|Match|\Closure $keywords The text or expression to alternatively match.
+     *
+     * @return $this
      */
     public function orMatch($keywords = null)
     {
         $this->tokens[] = array('OPERATOR' => '| ');
         $this->match($keywords);
+
         return $this;
     }
 
@@ -103,12 +101,15 @@ class Match
      *    $match->match('test')->maybe('case');
      *    // test MAYBE case
      *
-     * @param string|Match|Closure $keywords The text or expression to optionally match.
+     * @param string|Match|\Closure $keywords The text or expression to optionally match.
+     *
+     * @return $this
      */
     public function maybe($keywords = null)
     {
         $this->tokens[] = array('OPERATOR' => 'MAYBE ');
         $this->match($keywords);
+
         return $this;
     }
 
@@ -123,11 +124,14 @@ class Match
      *    // -test
      *
      * @param string $keyword The word not to match.
+     *
+     * @return $this
      */
     public function not($keyword = null)
     {
         $this->tokens[] = array('OPERATOR' => '-');
         $this->match($keyword);
+
         return $this;
     }
 
@@ -153,8 +157,10 @@ class Match
      *    $match->field('@relaxed')->field('nosuchfield')->match('test');
      *    // @@relaxed @nosuchfield test
      *
-     * @param string|array  $fields Field or fields to search.
-     * @param int           $limit  Maximum position limit in field a match is allowed at.
+     * @param string|array $fields Field or fields to search.
+     * @param int          $limit  Maximum position limit in field a match is allowed at.
+     *
+     * @return $this
      */
     public function field($fields, $limit = null)
     {
@@ -170,6 +176,7 @@ class Match
             'fields' => $fields,
             'limit'  => $limit,
         );
+
         return $this;
     }
 
@@ -187,6 +194,8 @@ class Match
      *    // @!(title,body) test
      *
      * @param string|array $fields Field or fields to ignore during search.
+     *
+     * @return $this
      */
     public function ignoreField($fields)
     {
@@ -198,6 +207,7 @@ class Match
             'fields' => $fields,
             'limit'  => null,
         );
+
         return $this;
     }
 
@@ -209,10 +219,32 @@ class Match
      *    // "test case"
      *
      * @param string $keywords The phrase to match.
+     *
+     * @return $this
      */
     public function phrase($keywords)
     {
         $this->tokens[] = array('PHRASE' => $keywords);
+
+        return $this;
+    }
+
+    /**
+     * Provide an optional phrase.
+     *
+     * Example:
+     *    $match->phrase('test case')->orPhrase('another case');
+     *    // "test case" | "another case"
+     *
+     * @param string $keywords The phrase to match.
+     *
+     * @return $this
+     */
+    public function orPhrase($keywords)
+    {
+        $this->tokens[] = array('OPERATOR' => '| ');
+        $this->phrase($keywords);
+
         return $this;
     }
 
@@ -223,8 +255,10 @@ class Match
      *    $match->proximity('test case', 5);
      *    // "test case"~5
      *
-     * @param string $keywords  The words to match.
-     * @param int    $distance  The upper limit on separation between words.
+     * @param string $keywords The words to match.
+     * @param int    $distance The upper limit on separation between words.
+     *
+     * @return $this
      */
     public function proximity($keywords, $distance)
     {
@@ -232,6 +266,7 @@ class Match
             'PROXIMITY' => $distance,
             'keywords'  => $keywords,
         );
+
         return $this;
     }
 
@@ -245,8 +280,10 @@ class Match
      *    $match->quorum('this is a test case', 0.5);
      *    // "this is a test case"/0.5
      *
-     * @param string    $keywords   The words to match.
-     * @param int|float $threshold  The minimum number or percent of words that must match.
+     * @param string    $keywords  The words to match.
+     * @param int|float $threshold The minimum number or percent of words that must match.
+     *
+     * @return $this
      */
     public function quorum($keywords, $threshold)
     {
@@ -254,6 +291,7 @@ class Match
             'QUORUM'   => $threshold,
             'keywords' => $keywords,
         );
+
         return $this;
     }
 
@@ -267,12 +305,15 @@ class Match
      *    $match->match('test')->before('case');
      *    // test << case
      *
-     * @param string|Match|Closure $keywords The text or expression that must come after.
+     * @param string|Match|\Closure $keywords The text or expression that must come after.
+     *
+     * @return $this
      */
     public function before($keywords = null)
     {
         $this->tokens[] = array('OPERATOR' => '<< ');
         $this->match($keywords);
+
         return $this;
     }
 
@@ -287,11 +328,14 @@ class Match
      *    // test ="specific cases"
      *
      * @param string $keyword The word that must be matched exactly.
+     *
+     * @return $this
      */
     public function exact($keyword = null)
     {
         $this->tokens[] = array('OPERATOR' => '=');
         $this->match($keyword);
+
         return $this;
     }
 
@@ -305,8 +349,10 @@ class Match
      *    $match->match('test')->boost('case', 1.2);
      *    // test case^1.2
      *
-     * @param string $keyword  The word to modify the score of.
-     * @param float  $amount   The amount to boost the score.
+     * @param string $keyword The word to modify the score of.
+     * @param float  $amount  The amount to boost the score.
+     *
+     * @return $this
      */
     public function boost($keyword, $amount = null)
     {
@@ -316,6 +362,7 @@ class Match
             $this->match($keyword);
         }
         $this->tokens[] = array('BOOST' => $amount);
+
         return $this;
     }
 
@@ -329,8 +376,10 @@ class Match
      *    $match->match('test')->near('case', 3);
      *    // test NEAR/3 case
      *
-     * @param string|Match|Closure $keywords  The text or expression to match nearby.
-     * @param int                  $distance  Maximum distance to the match.
+     * @param string|Match|\Closure $keywords The text or expression to match nearby.
+     * @param int                   $distance Maximum distance to the match.
+     *
+     * @return $this
      */
     public function near($keywords, $distance = null)
     {
@@ -338,6 +387,7 @@ class Match
         if ($distance !== null) {
             $this->match($keywords);
         }
+
         return $this;
     }
 
@@ -351,12 +401,15 @@ class Match
      *    $match->match('test')->sentence('case');
      *    // test SENTENCE case
      *
-     * @param string|Match|Closure $keywords The text or expression that must be in the sentence.
+     * @param string|Match|\Closure $keywords The text or expression that must be in the sentence.
+     *
+     * @return $this
      */
     public function sentence($keywords = null)
     {
         $this->tokens[] = array('OPERATOR' => 'SENTENCE ');
         $this->match($keywords);
+
         return $this;
     }
 
@@ -370,12 +423,15 @@ class Match
      *    $match->match('test')->paragraph('case');
      *    // test PARAGRAPH case
      *
-     * @param string|Match|Closure $keywords The text or expression that must be in the paragraph.
+     * @param string|Match|\Closure $keywords The text or expression that must be in the paragraph.
+     *
+     * @return $this
      */
     public function paragraph($keywords = null)
     {
         $this->tokens[] = array('OPERATOR' => 'PARAGRAPH ');
         $this->match($keywords);
+
         return $this;
     }
 
@@ -392,8 +448,10 @@ class Match
      *    $match->zone('th', 'test');
      *    // ZONE:(th) test
      *
-     * @param string|array         $zones     The zone or zones to search.
-     * @param string|Match|Closure $keywords  The text or expression that must be in these zones.
+     * @param string|array          $zones    The zone or zones to search.
+     * @param string|Match|\Closure $keywords The text or expression that must be in these zones.
+     *
+     * @return $this
      */
     public function zone($zones, $keywords = null)
     {
@@ -402,6 +460,7 @@ class Match
         }
         $this->tokens[] = array('ZONE' => $zones);
         $this->match($keywords);
+
         return $this;
     }
 
@@ -416,18 +475,23 @@ class Match
      *    $match->zonespan('th', 'test');
      *    // ZONESPAN:(th) test
      *
-     * @param string               $zone      The zone to search.
-     * @param string|Match|Closure $keywords  The text or expression that must be in this zone.
+     * @param string                $zone     The zone to search.
+     * @param string|Match|\Closure $keywords The text or expression that must be in this zone.
+     *
+     * @return $this
      */
     public function zonespan($zone, $keywords = null)
     {
         $this->tokens[] = array('ZONESPAN' => $zone);
         $this->match($keywords);
+
         return $this;
     }
 
     /**
      * Build the match expression.
+     *
+     * @return $this
      */
     public function compile()
     {
@@ -479,6 +543,7 @@ class Match
             }
         }
         $this->last_compiled = trim($query);
+
         return $this;
     }
 

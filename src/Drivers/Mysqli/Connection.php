@@ -2,11 +2,17 @@
 
 namespace Foolz\SphinxQL\Drivers\Mysqli;
 
+use Foolz\SphinxQL\Drivers\ConnectionBase;
+use Foolz\SphinxQL\Drivers\MultiResultSet;
+use Foolz\SphinxQL\Drivers\ResultSet;
 use Foolz\SphinxQL\Exception\ConnectionException;
 use Foolz\SphinxQL\Exception\DatabaseException;
 use Foolz\SphinxQL\Exception\SphinxQLException;
-use Foolz\SphinxQL\Drivers\ConnectionBase;
 
+/**
+ * SphinxQL connection class utilizing the MySQLi extension.
+ * It also contains escaping and quoting functions.
+ */
 class Connection extends ConnectionBase
 {
     /**
@@ -14,25 +20,7 @@ class Connection extends ConnectionBase
      *
      * @var string
      */
-    protected $internal_encoding = null;
-
-    /**
-     * Disables any warning outputs returned on the \MySQLi connection with @ prefix.
-     *
-     * @var boolean
-     */
-    protected $silence_connection_warning = false;
-
-    /**
-     * Forces the \MySQLi connection to suppress all errors returned. This should only be used
-     * when the production server is running with high error reporting settings.
-     *
-     * @param boolean $enable True if it should be enabled, false if it should be disabled
-     */
-    public function silenceConnectionWarning($enable = true)
-    {
-        $this->silence_connection_warning = $enable;
-    }
+    protected $internal_encoding;
 
     /**
      * Returns the internal encoding.
@@ -45,14 +33,9 @@ class Connection extends ConnectionBase
     }
 
     /**
-     * Establishes a connection to the Sphinx server with \MySQLi.
-     *
-     * @param boolean $suppress_error If the warnings on the connection should be suppressed
-     *
-     * @return boolean True if connected
-     * @throws ConnectionException If a connection error was encountered
+     * @inheritdoc
      */
-    public function connect($suppress_error = false)
+    public function connect()
     {
         $data = $this->getParams();
         $conn = mysqli_init();
@@ -63,15 +46,13 @@ class Connection extends ConnectionBase
             }
         }
 
-        if (!$suppress_error && ! $this->silence_connection_warning) {
-            $conn->real_connect($data['host'], null, null, null, (int) $data['port'], $data['socket']);
-        } else {
-            @ $conn->real_connect($data['host'], null, null, null, (int) $data['port'], $data['socket']);
-        }
-
-        if ($conn->connect_error) {
-            throw new ConnectionException('Connection Error: ['.$conn->connect_errno.']'
-                .$conn->connect_error);
+        set_error_handler(function () {});
+        try {
+            if (!$conn->real_connect($data['host'], null, null, null, (int) $data['port'], $data['socket'])) {
+                throw new ConnectionException('Connection Error: ['.$conn->connect_errno.']'.$conn->connect_error);
+            }
+        } finally {
+            restore_error_handler();
         }
 
         $conn->set_charset('utf8');
@@ -84,69 +65,59 @@ class Connection extends ConnectionBase
     /**
      * Pings the Sphinx server.
      *
-     * @return boolean True if connected, false otherwise
+     * @return bool True if connected, false otherwise
+     * @throws ConnectionException
      */
     public function ping()
     {
         $this->ensureConnection();
+
         return $this->getConnection()->ping();
     }
 
     /**
-     * Establishes a connection if needed
-     * @throws ConnectionException
-     */
-    private function ensureConnection()
-    {
-        try {
-            $this->getConnection();
-        } catch (ConnectionException $e) {
-            $this->connect();
-        }
-    }
-
-    /**
-     * Closes and unset the connection to the Sphinx server.
+     * @inheritdoc
      */
     public function close()
     {
         $this->mbPop();
         $this->getConnection()->close();
-        $this->connection = null;
+
+        return parent::close();
     }
 
     /**
-     * Performs a query on the Sphinx server.
-     *
-     * @param string $query The query string
-     *
-     * @return ResultSet The result array or number of rows affected
-     * @throws DatabaseException If the executed query produced an error
+     * @inheritdoc
      */
     public function query($query)
     {
         $this->ensureConnection();
 
-        $resource = $this->getConnection()->query($query);
+        set_error_handler(function () {});
+        try {
+            /**
+             * ManticoreSearch/Sphinx silence warnings thrown by php mysqli/mysqlnd
+             *
+             * unknown command (code=9) - status() command not implemented by Sphinx/ManticoreSearch
+             * ERROR mysqli::prepare(): (08S01/1047): unknown command (code=22) - prepare() not implemented by Sphinx/Manticore
+             */
+            $resource = @$this->getConnection()->query($query);
+        } finally {
+            restore_error_handler();
+        }        
 
         if ($this->getConnection()->error) {
             throw new DatabaseException('['.$this->getConnection()->errno.'] '.
                 $this->getConnection()->error.' [ '.$query.']');
         }
 
-        return new ResultSet($this, $resource);
+        return new ResultSet(new ResultSetAdapter($this, $resource));
     }
 
     /**
-     * Performs multiple queries on the Sphinx server.
-     *
-     * @param array $queue Queue holding all of the queries to be executed
-     *
-     * @return MultiResultSet The result array
-     * @throws DatabaseException In case a query throws an error
-     * @throws SphinxQLException In case the array passed is empty
+     * @inheritdoc
      */
-    public function multiQuery(Array $queue)
+    public function multiQuery(array $queue)
     {
         $count = count($queue);
 
@@ -156,23 +127,20 @@ class Connection extends ConnectionBase
 
         $this->ensureConnection();
 
-        // HHVM bug (2015/07/07, HipHop VM 3.8.0-dev (rel)): $mysqli->error and $mysqli->errno aren't set
-        if (!$this->getConnection()->multi_query(implode(';', $queue))) {
+        $this->getConnection()->multi_query(implode(';', $queue));
+
+        if ($this->getConnection()->error) {
             throw new DatabaseException('['.$this->getConnection()->errno.'] '.
                 $this->getConnection()->error.' [ '.implode(';', $queue).']');
-        };
+        }
 
-        return new MultiResultSet($this, $count);
+        return new MultiResultSet(new MultiResultSetAdapter($this));
     }
 
     /**
      * Escapes the input with \MySQLi::real_escape_string.
      * Based on FuelPHP's escaping function.
-     *
-     * @param string $value The string to escape
-     *
-     * @return string The escaped string
-     * @throws DatabaseException If an error was encountered during server-side escape
+     * @inheritdoc
      */
     public function escape($value)
     {
@@ -203,8 +171,11 @@ class Connection extends ConnectionBase
      */
     public function mbPop()
     {
-        mb_internal_encoding($this->internal_encoding);
-        $this->internal_encoding = null;
+        // TODO: add test case for #155
+        if ($this->getInternalEncoding()) {
+            mb_internal_encoding($this->getInternalEncoding());
+            $this->internal_encoding = null;
+        }
 
         return $this;
     }

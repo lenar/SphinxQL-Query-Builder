@@ -3,39 +3,38 @@ language: php
 sudo: false
 
 php:
-  - 5.3
-  - 5.4
-  - 5.5
   - 5.6
   - 7.0
-  - hhvm
+  - 7.1
+  - 7.2
+  - 7.3
 
 env:
-  - DRIVER=mysqli SPHINXSEARCH_BUILD=rel22
-  - DRIVER=mysqli SPHINXSEARCH_BUILD=beta
-  - DRIVER=pdo SPHINXSEARCH_BUILD=rel22
-  - DRIVER=pdo SPHINXSEARCH_BUILD=beta
+  - DRIVER=mysqli SEARCH_BUILD=SPHINX2 EXCLUDE_GROUP="--exclude-group=Manticore"
+  - DRIVER=mysqli SEARCH_BUILD=SPHINX3 EXCLUDE_GROUP="--exclude-group=Manticore"
+  - DRIVER=mysqli SEARCH_BUILD=MANTICORE
+  - DRIVER=pdo SEARCH_BUILD=SPHINX2 EXCLUDE_GROUP="--exclude-group=Manticore"
+  - DRIVER=pdo SEARCH_BUILD=SPHINX3 EXCLUDE_GROUP="--exclude-group=Manticore"
+  - DRIVER=pdo SEARCH_BUILD=MANTICORE
 
 matrix:
   fast_finish: true
   allow_failures:
-    - env: DRIVER=pdo SPHINXSEARCH_BUILD=rel22
-    - env: DRIVER=pdo SPHINXSEARCH_BUILD=beta
+    - env: DRIVER=mysqli SEARCH_BUILD=SPHINX3 EXCLUDE_GROUP="--exclude-group=Manticore"
+    - env: DRIVER=pdo SEARCH_BUILD=SPHINX3 EXCLUDE_GROUP="--exclude-group=Manticore"
 
 before_install:
-  - mkdir $HOME/sphinx
-  - pushd $HOME/sphinx
-  - wget --quiet http://ppa.launchpad.net/builds/sphinxsearch-${SPHINXSEARCH_BUILD}/ubuntu/dists/`lsb_release -cs`/main/binary-amd64/Packages.gz
-  - gzip -d Packages.gz
-  - SPHINX_DEB=`grep -m1 Filename Packages | cut -f2 -d' '`
-  - wget --quiet -O sphinxsearch.deb http://ppa.launchpad.net/builds/sphinxsearch-${SPHINXSEARCH_BUILD}/ubuntu/${SPHINX_DEB}
-  - dpkg -x sphinxsearch.deb .
+  - mkdir $HOME/search
+  - pushd $HOME/search
+  - $TRAVIS_BUILD_DIR/tests/install.sh
   - popd
+
+install: composer update --prefer-dist --no-interaction
 
 before_script:
   - composer dump-autoload
   - cd tests
-  - gcc -shared -o data/test_udf.so test_udf.c
-  - $HOME/sphinx/usr/bin/searchd -c sphinx.conf
+  - $TRAVIS_BUILD_DIR/tests/run.sh
+  - cd ..
 
-script: phpunit --configuration travis/$DRIVER.phpunit.xml --coverage-text
+script: ./vendor/bin/phpunit --configuration tests/travis/$DRIVER.phpunit.xml --coverage-text $EXCLUDE_GROUP

@@ -8,23 +8,21 @@ Query Builder for SphinxQL
 
 ## About
 
-This is a SphinxQL Query Builder used to work with SphinxQL, a SQL dialect used with the Sphinx search engine. It maps most of the functions listed in the [SphinxQL reference](http://sphinxsearch.com/docs/current.html#SphinxQL-reference) and is generally [faster](http://sphinxsearch.com/blog/2010/04/25/sphinxapi-vs-SphinxQL-benchmark/) than the available Sphinx API.
+This is a SphinxQL Query Builder used to work with SphinxQL, a SQL dialect used with the Sphinx search engine and it's fork Manticore. It maps most of the functions listed in the [SphinxQL reference](http://sphinxsearch.com/docs/current.html#SphinxQL-reference) and is generally [faster](http://sphinxsearch.com/blog/2010/04/25/sphinxapi-vs-SphinxQL-benchmark/) than the available Sphinx API.
 
-This Query Builder has no dependencies except PHP 5.3, `\MySQLi` extension, and [Sphinx](http://sphinxsearch.com). It is also compatible with [HHVM](http://hhvm.com).
-
-__This package is BETA QUALITY.__ It is recommended that you do extensive testing in development before using it in a production environment.
+This Query Builder has no dependencies except PHP 5.6, `\MySQLi` extension, `PDO`, and [Sphinx](http://sphinxsearch.com)/[Manticore](https://manticoresearch.com).
 
 ### Missing methods?
 
 SphinxQL evolves very fast.
 
-Most of the new functions are static one liners like `SHOW PLUGINS`. We'll avoid trying to keep up with these methods, as they are easy to just call directly (`SphinxQL::create($conn)->query($sql)->execute()`). You're free to submit pull requests to support these methods.
+Most of the new functions are static one liners like `SHOW PLUGINS`. We'll avoid trying to keep up with these methods, as they are easy to just call directly (`(new SphinxQL($conn))->query($sql)->execute()`). You're free to submit pull requests to support these methods.
 
 If any feature is unreachable through this library, open a new issue or send a pull request.
 
 ## Code Quality
 
-The majority of the methods in the package have been unit tested. The unit tests are run both in PHP and HHVM.
+The majority of the methods in the package have been unit tested.
 
 The only methods that have not been fully tested are the Helpers, which are mostly simple shorthands for SQL strings.
 
@@ -52,7 +50,7 @@ All pull requests must be accompanied by passing unit tests and complete code co
 
 ## Installation
 
-This is a Composer package. You can install this package with the following command: `php composer.phar install`
+This is a Composer package. You can install this package with the following command: `composer require foolz/sphinxql-query-builder`
 
 ## Usage
 
@@ -61,13 +59,13 @@ The following examples will omit the namespace.
 ```php
 <?php
 use Foolz\SphinxQL\SphinxQL;
-use Foolz\SphinxQL\Connection;
+use Foolz\SphinxQL\Drivers\Mysqli\Connection;
 
 // create a SphinxQL Connection object to use with SphinxQL
 $conn = new Connection();
 $conn->setParams(array('host' => 'domain.tld', 'port' => 9306));
 
-$query = SphinxQL::create($conn)->select('column_one', 'colume_two')
+$query = (new SphinxQL($conn))->select('column_one', 'colume_two')
     ->from('index_ancient', 'index_main', 'index_delta')
     ->match('comment', 'my opinion is superior to yours')
     ->where('banned', '=', 1);
@@ -75,16 +73,18 @@ $query = SphinxQL::create($conn)->select('column_one', 'colume_two')
 $result = $query->execute();
 ```
 
+### Drivers
+
+We support the following database connection drivers:
+
+* Foolz\SphinxQL\Drivers\Mysqli\Connection
+* Foolz\SphinxQL\Drivers\Pdo\Connection
+
 ### Connection
 
 * __$conn = new Connection()__
 
 	Create a new Connection instance to be used with the following methods or SphinxQL class.
-
-* __$conn->silenceConnectionWarning($enable = true)__
-
-	Suppresses any warnings and errors displayed by the `\MySQLi` extension upon connection failure.
-	_This is disabled by default._
 
 * __$conn->setParams($params = array('host' => '127.0.0.1', 'port' => 9306))__
 
@@ -92,13 +92,13 @@ $result = $query->execute();
 
 * __$conn->query($query)__
 
-	Performs the query on the server. Returns an _array_ of results for `SELECT`, or an _int_ with the number of rows affected.
+	Performs the query on the server. Returns a [`ResultSet`](#resultset) object containing the query results.
 
 _More methods are available in the Connection class, but usually not necessary as these are handled automatically._
 
 ### SphinxQL
 
-* __SphinxQL::create($conn)__
+* __new SphinxQL($conn)__
 
 	Creates a SphinxQL instance used for generating queries.
 
@@ -138,7 +138,7 @@ There are cases when an input __must__ be escaped in the SQL statement. The foll
 
 #### SELECT
 
-* __$sq = SphinxQL::create($conn)->select($column1, $column2, ...)->from($index1, $index2, ...)__
+* __$sq = (new SphinxQL($conn))->select($column1, $column2, ...)->from($index1, $index2, ...)__
 
 	Begins a `SELECT` query statement. If no column is specified, the statement defaults to using `*`. Both `$column1` and `$index1` can be arrays.
 
@@ -146,11 +146,11 @@ There are cases when an input __must__ be escaped in the SQL statement. The foll
 
 This will return an `INT` with the number of rows affected.
 
-* __$sq = SphinxQL::create($conn)->insert()->into($index)__
+* __$sq = (new SphinxQL($conn))->insert()->into($index)__
 
 	Begins an `INSERT`.
 
-* __$sq = SphinxQL::create($conn)->replace()->into($index)__
+* __$sq = (new SphinxQL($conn))->replace()->into($index)__
 
 	Begins an `REPLACE`.
 
@@ -172,7 +172,7 @@ This will return an `INT` with the number of rows affected.
 
 This will return an `INT` with the number of rows affected.
 
-* __$sq = SphinxQL::create($conn)->update($index)__
+* __$sq = (new SphinxQL($conn))->update($index)__
 
 	Begins an `UPDATE`.
 
@@ -188,7 +188,7 @@ This will return an `INT` with the number of rows affected.
 
 Will return an array with an `INT` as first member, the number of rows deleted.
 
-* __$sq = SphinxQL::create($conn)->delete()->from($index)->where(...)__
+* __$sq = (new SphinxQL($conn))->delete()->from($index)->where(...)__
 
 	Begins a `DELETE`.
 
@@ -207,7 +207,7 @@ Will return an array with an `INT` as first member, the number of rows deleted.
     $sq->where('column', '=', 'value');
 
     // WHERE `column` >= 'value'
-    $sq->where('column', '>=', 'value')
+    $sq->where('column', '>=', 'value');
 
     // WHERE `column` IN ('value1', 'value2', 'value3')
     $sq->where('column', 'IN', array('value1', 'value2', 'value3'));
@@ -217,7 +217,7 @@ Will return an array with an `INT` as first member, the number of rows deleted.
 
     // WHERE `column` BETWEEN 'value1' AND 'value2'
     // WHERE `example` BETWEEN 10 AND 100
-    $sq->where('column', 'BETWEEN', array('value1', 'value2'))
+    $sq->where('column', 'BETWEEN', array('value1', 'value2'));
 	```
 
 	_It should be noted that `OR` and parenthesis are not supported and implemented in the SphinxQL dialect yet._
@@ -241,9 +241,12 @@ Will return an array with an `INT` as first member, the number of rows deleted.
 
     ```php
     <?php
+    use Foolz\SphinxQL\SphinxQL;
+
     try
     {
-        $result = SphinxQL::create($conn)->select()
+        $result = (new SphinxQL($conn))
+            ->select()
             ->from('rt')
             ->match('title', 'Sora no || Otoshimono', true)
             ->match('title', SphinxQL::expr('"Otoshimono"/3'))
@@ -296,15 +299,15 @@ Will return an array with an `INT` as first member, the number of rows deleted.
 
 #### TRANSACTION
 
-* __SphinxQL::create($conn)->transactionBegin()__
+* __(new SphinxQL($conn))->transactionBegin()__
 
 	Begins a transaction.
 
-* __SphinxQL::create($conn)->transactionCommit()__
+* __(new SphinxQL($conn))->transactionCommit()__
 
 	Commits a transaction.
 
-* __SphinxQL::create($conn)->transactionRollback()__
+* __(new SphinxQL($conn))->transactionRollback()__
 
 	Rollbacks a transaction.
 
@@ -312,11 +315,11 @@ Will return an array with an `INT` as first member, the number of rows deleted.
 
 * __$sq->execute()__
 
-	Compiles, executes, and __returns__ an array of results of a query.
+	Compiles, executes, and __returns__ a [`ResultSet`](#resultset) object containing the query results.
 
 * __$sq->executeBatch()__
 
-	Compiles, executes, and __returns__ an array of results for a multi-query.
+	Compiles, executes, and __returns__ a [`MultiResultSet`](#multiresultset) object containing the multi-query results.
 
 * __$sq->compile()__
 
@@ -328,7 +331,7 @@ Will return an array with an `INT` as first member, the number of rows deleted.
 
 * __$sq->getResult()__
 
-	Returns the last result.
+	Returns the [`ResultSet`](#resultset) or [` MultiResultSet`](#multiresultset) object, depending on whether single or multi-query have been executed last.
 
 #### Multi-Query
 
@@ -338,15 +341,17 @@ Will return an array with an `INT` as first member, the number of rows deleted.
 
 * __$sq->executeBatch()__
 
-	Returns an array of the results of all the queued queries.
+	Returns a [`MultiResultSet`](#multiresultset) object containing the multi-query results.
 
 ```php
 <?php
-$result = SphinxQL::create($this->conn)
+use Foolz\SphinxQL\SphinxQL;
+
+$result = (new SphinxQL($this->conn))
     ->select()
     ->from('rt')
     ->match('title', 'sora')
-    ->enqueue(SphinxQL::create($this->conn)->query('SHOW META')) // this returns the object with SHOW META query
+    ->enqueue((new SphinxQL($this->conn))->query('SHOW META')) // this returns the object with SHOW META query
     ->enqueue() // this returns a new object
     ->select()
     ->from('rt')
@@ -354,7 +359,43 @@ $result = SphinxQL::create($this->conn)
     ->executeBatch();
 ```
 
-`$result[0]` will contain the first select. `$result[1]` will contain the META for the first query. `$result[2]` will contain the second select.
+`$result` will contain [`MultiResultSet`](#multiresultset) object. Sequential calls to the `$result->getNext()` method allow you to get a [`ResultSet`](#resultset) object containing the results of the next enqueued query.
+
+
+#### Query results
+
+##### ResultSet
+
+Contains the results of the query execution.
+
+* __$result->fetchAllAssoc()__
+
+	Fetches all result rows as an associative array.
+
+* __$result->fetchAllNum()__
+
+	Fetches all result rows as a numeric array.
+
+* __$result->fetchAssoc()__
+
+	Fetch a result row as an associative array.
+
+* __$result->fetchNum()__
+
+	Fetch a result row as a numeric array.
+
+* __$result->getAffectedRows()__
+
+	Returns the number of affected rows in the case of a DML query.
+
+##### MultiResultSet
+
+Contains the results of the multi-query execution.
+
+* __$result->getNext()__
+	
+	Returns a [`ResultSet`](#resultset) object containing the results of the next query.
+
 
 ### Helper
 
@@ -370,11 +411,13 @@ The following methods return a prepared `SphinxQL` object. You can also use `->e
 
 ```php
 <?php
-$result = SphinxQL::create($this->conn)
+use Foolz\SphinxQL\SphinxQL;
+
+$result = (new SphinxQL($this->conn))
     ->select()
     ->from('rt')
     ->where('gid', 9003)
-    ->enqueue(Helper::create($this->conn)->showMeta()) // this returns the object with SHOW META query prepared
+    ->enqueue((new Helper($this->conn))->showMeta()) // this returns the object with SHOW META query prepared
     ->enqueue() // this returns a new object
     ->select()
     ->from('rt')
@@ -382,19 +425,110 @@ $result = SphinxQL::create($this->conn)
     ->executeBatch();
 ```
 
-* `Helper::create($conn)->showMeta() => 'SHOW META'`
-* `Helper::create($conn)->showWarnings() => 'SHOW WARNINGS'`
-* `Helper::create($conn)->showStatus() => 'SHOW STATUS'`
-* `Helper::create($conn)->showTables() => 'SHOW TABLES'`
-* `Helper::create($conn)->showVariables() => 'SHOW VARIABLES'`
-* `Helper::create($conn)->setVariable($name, $value, $global = false)`
-* `Helper::create($conn)->callSnippets($data, $index, $query, $options = array())`
-* `Helper::create($conn)->callKeywords($text, $index, $hits = null)`
-* `Helper::create($conn)->describe($index)`
-* `Helper::create($conn)->createFunction($udf_name, $returns, $soname)`
-* `Helper::create($conn)->dropFunction($udf_name)`
-* `Helper::create($conn)->attachIndex($disk_index, $rt_index)`
-* `Helper::create($conn)->flushRtIndex($index)`
-* `Helper::create($conn)->optimizeIndex($index)`
-* `Helper::create($conn)->showIndexStatus($index)`
-* `Helper::create($conn)->flushRamchunk($index)`
+* `(new Helper($conn))->showMeta() => 'SHOW META'`
+* `(new Helper($conn))->showWarnings() => 'SHOW WARNINGS'`
+* `(new Helper($conn))->showStatus() => 'SHOW STATUS'`
+* `(new Helper($conn))->showTables() => 'SHOW TABLES'`
+* `(new Helper($conn))->showVariables() => 'SHOW VARIABLES'`
+* `(new Helper($conn))->setVariable($name, $value, $global = false)`
+* `(new Helper($conn))->callSnippets($data, $index, $query, $options = array())`
+* `(new Helper($conn))->callKeywords($text, $index, $hits = null)`
+* `(new Helper($conn))->describe($index)`
+* `(new Helper($conn))->createFunction($udf_name, $returns, $soname)`
+* `(new Helper($conn))->dropFunction($udf_name)`
+* `(new Helper($conn))->attachIndex($disk_index, $rt_index)`
+* `(new Helper($conn))->flushRtIndex($index)`
+* `(new Helper($conn))->optimizeIndex($index)`
+* `(new Helper($conn))->showIndexStatus($index)`
+* `(new Helper($conn))->flushRamchunk($index)`
+
+### Percolate
+ The `Percolate` class provides methods for the "Percolate query" feature of Manticore Search.
+ For more information about percolate queries refer the [Percolate Query](https://docs.manticoresearch.com/latest/html/searching/percolate_query.html) documentation.
+
+#### INSERT
+
+The Percolate class provide a dedicated helper for inserting queries in a `percolate` index. 
+
+```php
+<?php
+use Foolz\SphinxQL\Percolate;
+
+$query = (new Percolate($conn))
+     ->insert('full text query terms',false)      
+     ->into('pq')                                              
+     ->tags(['tag1','tag2'])                                  
+     ->filter('price>3')                                      
+     ->execute();
+ ```
+
+* __`$pq = (new Percolate($conn))->insert($query,$noEscape)`__
+
+    Begins an ``INSERT``. A single query is allowed to be added per insert. By default, the query string is escaped. Optional second parameter  `$noEscape` can be set to  `true` for not applying the escape.
+
+* __`$pq->into($index)`__
+
+   Set the percolate index for insert.
+
+* __`$pq->tags($tags)`__
+
+   Set a list of tags per query. Accepts array of strings or string delimited by comma
+
+* __`$pq->filter($filter)`__
+   Sets an attribute filtering string. The string must look the same as string of an WHERE attribute filters clause
+
+* __`$pq->execute()`__
+
+   Execute the `INSERT`.
+
+#### CALLPQ
+
+  Searches for stored queries that provide matching for input documents.
+  
+```php
+<?php
+use Foolz\SphinxQL\Percolate;
+$query = (new Percolate($conn))
+     ->callPQ()
+     ->from('pq')                                              
+     ->documents(['multiple documents', 'go this way'])        
+     ->options([                                               
+           Percolate::OPTION_VERBOSE => 1,
+           Percolate::OPTION_DOCS_JSON => 1
+     ])
+     ->execute();
+ ```
+
+* __`$pq = (new Percolate($conn))->callPQ()`__
+
+   Begins a `CALL PQ`
+
+* __`$pq->from($index)`__
+
+   Set percolate index.
+
+* __`$pq->documents($docs)`__
+
+   Set the incoming documents. $docs can be:
+   
+  - a single plain string (requires `Percolate::OPTION_DOCS_JSON` set to 0)
+  - array of plain strings (requires `Percolate::OPTION_DOCS_JSON` set to 0)
+  - a single JSON document
+  - an array of JSON documents
+  - a JSON object containing an  array of JSON objects
+   
+
+* __`$pq->options($options)`__
+
+    Set options of `CALL PQ`. Refer the Manticore docs for more information about the `CALL PQ` parameters.
+    
+  - __Percolate::OPTION_DOCS_JSON__ (`as docs_json`) default to 1 (docs are json objects). Needs to be set to 0 for plain string documents.
+        Documents added as associative arrays will be converted to JSON when sending the query to Manticore.
+   - __Percolate::OPTION_VERBOSE__ (`as verbose`) more information is printed by following `SHOW META`, default is 0
+   - __Percolate::OPTION_QUERY__  (`as query`) returns all stored queries fields , default is 0
+   - __Percolate::OPTION_DOCS__  (`as docs`) provide result set as per document matched (instead of per query), default is 0
+
+* `$pq->execute()`
+
+   Execute the `CALL PQ`.
+

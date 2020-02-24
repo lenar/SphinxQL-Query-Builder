@@ -1,8 +1,11 @@
 <?php
+
 namespace Foolz\SphinxQL\Drivers;
 
 use Foolz\SphinxQL\Exception\ConnectionException;
 use Foolz\SphinxQL\Expression;
+use mysqli;
+use PDO;
 
 abstract class ConnectionBase implements ConnectionInterface
 {
@@ -15,15 +18,16 @@ abstract class ConnectionBase implements ConnectionInterface
 
     /**
      * Internal connection object.
+     * @var mysqli|PDO
      */
-    protected $connection = null;
+    protected $connection;
 
     /**
      * Sets one or more connection parameters.
      *
      * @param array $params Associative array of parameters and values.
      */
-    public function setParams(Array $params)
+    public function setParams(array $params)
     {
         foreach ($params as $param => $value) {
             $this->setParam($param, $value);
@@ -38,7 +42,7 @@ abstract class ConnectionBase implements ConnectionInterface
      * * array options - MySQLi options/values, as an associative array. Example: array(MYSQLI_OPT_CONNECT_TIMEOUT => 2)
      *
      * @param string $param Name of the parameter to modify.
-     * @param mixed $value Value to which the parameter will be set.
+     * @param mixed  $value Value to which the parameter will be set.
      */
     public function setParam($param, $value)
     {
@@ -72,7 +76,7 @@ abstract class ConnectionBase implements ConnectionInterface
     /**
      * Returns the current connection established.
      *
-     * @return object Internal connection object
+     * @return mysqli|PDO Internal connection object
      * @throws ConnectionException If no connection has been established or open
      */
     public function getConnection()
@@ -87,10 +91,7 @@ abstract class ConnectionBase implements ConnectionInterface
     /**
      * Adds quotes around values when necessary.
      * Based on FuelPHP's quoting function.
-     *
-     * @param Expression|string $value The input string, eventually wrapped in an expression to leave it untouched
-     *
-     * @return Expression|string|int The untouched Expression or the quoted string
+     * @inheritdoc
      */
     public function quote($value)
     {
@@ -108,7 +109,7 @@ abstract class ConnectionBase implements ConnectionInterface
         } elseif (is_float($value)) {
             // Convert to non-locale aware float to prevent possible commas
             return sprintf('%F', $value);
-        }  elseif (is_array($value)) {
+        } elseif (is_array($value)) {
             // Supports MVA attributes
             return '('.implode(',', $this->quoteArr($value)).')';
         }
@@ -117,13 +118,9 @@ abstract class ConnectionBase implements ConnectionInterface
     }
 
     /**
-     * Calls $this->quote() on every element of the array passed.
-     *
-     * @param array $array The array of strings to quote
-     *
-     * @return array The array of quotes strings
+     * @inheritdoc
      */
-    public function quoteArr(Array $array = array())
+    public function quoteArr(array $array = array())
     {
         $result = array();
 
@@ -133,4 +130,39 @@ abstract class ConnectionBase implements ConnectionInterface
 
         return $result;
     }
+
+    /**
+     * Closes and unset the connection to the Sphinx server.
+     *
+     * @return $this
+     * @throws ConnectionException
+     */
+    public function close()
+    {
+        $this->connection = null;
+
+        return $this;
+    }
+
+    /**
+     * Establishes a connection if needed
+     * @throws ConnectionException
+     */
+    protected function ensureConnection()
+    {
+        try {
+            $this->getConnection();
+        } catch (ConnectionException $e) {
+            $this->connect();
+        }
+    }
+
+    /**
+     * Establishes a connection to the Sphinx server.
+     *
+     * @return bool True if connected
+     * @throws ConnectionException If a connection error was encountered
+     */
+    abstract public function connect();
+
 }

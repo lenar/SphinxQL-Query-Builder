@@ -7,7 +7,6 @@ use Foolz\SphinxQL\Exception\SphinxQLException;
 
 /**
  * Query Builder class for Facet statements.
- * @package Foolz\SphinxQL
  * @author Vicent Valls
  */
 class Facet
@@ -17,14 +16,14 @@ class Facet
      *
      * @var ConnectionInterface
      */
-    protected $connection = null;
+    protected $connection;
 
     /**
      * An SQL query that is not yet executed or "compiled"
      *
      * @var string
      */
-    protected $query = null;
+    protected $query;
 
     /**
      * Array of select elements that will be comma separated.
@@ -52,31 +51,21 @@ class Facet
      *
      * @var null|int
      */
-    protected $offset = null;
+    protected $offset;
 
     /**
      * When not null it adds a limit
      *
      * @var null|int
      */
-    protected $limit = null;
-
-    public function __construct(ConnectionInterface $connection = null, $static = false)
-    {
-        $this->connection = $connection;
-    }
+    protected $limit;
 
     /**
-     * Creates and setups a Facet object
-     * The connection is required only in case this is not to be passed to a SphinxQL object via $sq->facet()
-     *
      * @param ConnectionInterface|null $connection
-     *
-     * @return Facet
      */
-    public static function create(ConnectionInterface $connection = null)
+    public function __construct(ConnectionInterface $connection = null)
     {
-        return new Facet($connection);
+        $this->connection = $connection;
     }
 
     /**
@@ -93,11 +82,13 @@ class Facet
      * Sets the connection to be used
      *
      * @param ConnectionInterface $connection
+     *
      * @return Facet
      */
     public function setConnection(ConnectionInterface $connection = null)
     {
         $this->connection = $connection;
+
         return $this;
     }
 
@@ -205,9 +196,9 @@ class Facet
      * Examples:
      *    $query->facetFunction('category');
      *
-     * @param string       $function  Function name
-     * @param array        $params    Array  string arguments containing column names
-     * @param string       $direction The ordering direction (asc/desc)
+     * @param string $function  Function name
+     * @param array  $params    Array  string arguments containing column names
+     * @param string $direction The ordering direction (asc/desc)
      *
      * @return Facet
      */
@@ -235,6 +226,7 @@ class Facet
     {
         if ($limit === null) {
             $this->limit = (int) $offset;
+
             return $this;
         }
 
@@ -273,7 +265,7 @@ class Facet
             foreach ($this->facet as $array) {
                 if ($array instanceof Expression) {
                     $facets[] = $array;
-                } else if ($array[1] === null) {
+                } elseif ($array[1] === null) {
                     $facets[] = $array[0];
                 } else {
                     $facets[] = $array[0].' AS '.$array[1];
@@ -324,6 +316,7 @@ class Facet
      * Get String with SQL facet
      *
      * @return string
+     * @throws SphinxQLException
      */
     public function getFacet()
     {

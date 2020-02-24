@@ -1,10 +1,11 @@
 <?php
 
-use Foolz\SphinxQL\SphinxQL;
 use Foolz\SphinxQL\Drivers\Mysqli\Connection;
+use Foolz\Sphinxql\Drivers\ResultSetInterface;
+use Foolz\SphinxQL\SphinxQL;
 use Foolz\SphinxQL\Tests\TestUtil;
 
-class ResultSetTest extends PHPUnit_Framework_TestCase
+class ResultSetTest extends \PHPUnit\Framework\TestCase
 {
     /**
      * @var Connection
@@ -36,14 +37,23 @@ class ResultSetTest extends PHPUnit_Framework_TestCase
         $conn->setParam('port', 9307);
         self::$conn = $conn;
 
-        SphinxQL::create(self::$conn)->getConnection()->query('TRUNCATE RTINDEX rt');
+        (new SphinxQL(self::$conn))->getConnection()->query('TRUNCATE RTINDEX rt');
+    }
+
+    /**
+     * @return SphinxQL
+     */
+    protected function createSphinxQL()
+    {
+        return new SphinxQL(self::$conn);
     }
 
     public function refill()
     {
-        SphinxQL::create(self::$conn)->getConnection()->query('TRUNCATE RTINDEX rt');
+        $this->createSphinxQL()->getConnection()->query('TRUNCATE RTINDEX rt');
 
-        $sq = SphinxQL::create(self::$conn)->insert()
+        $sq = $this->createSphinxQL()
+            ->insert()
             ->into('rt')
             ->columns('id', 'gid', 'title', 'content');
 
@@ -57,7 +67,7 @@ class ResultSetTest extends PHPUnit_Framework_TestCase
     public function testIsResultSet()
     {
         $res = self::$conn->query('SELECT * FROM rt');
-        $this->assertInstanceOf('\Foolz\Sphinxql\Drivers\ResultSetInterface', $res);
+        $this->assertInstanceOf(ResultSetInterface::class, $res);
     }
 
     public function testStore()
@@ -120,19 +130,13 @@ class ResultSetTest extends PHPUnit_Framework_TestCase
         $res = self::$conn->query('SELECT * FROM rt');
         $res->toNextRow()->toNextRow()->toNextRow();
         $row = $res->fetchAssoc();
-        $this->assertEquals(12, $row['id']);
-        $res->freeResult();
-
-        $res = self::$conn->query('SELECT * FROM rt WHERE id = 10');
-        $res->toNextRow();
-        $row = $res->fetchAssoc();
-        $this->assertEquals(10, $row['id']);
+        $this->assertEquals(13, $row['id']);
         $res->freeResult();
     }
 
     /**
      * @expectedException        Foolz\SphinxQL\Exception\ResultSetException
-     * @expectedExceptionMessage The next row does not exist.
+     * @expectedExceptionMessage The row does not exist.
      */
     public function testToNextRowThrows()
     {
@@ -141,11 +145,11 @@ class ResultSetTest extends PHPUnit_Framework_TestCase
         $res->toNextRow()->toNextRow();
     }
 
-    public function testGetCount()
+    public function testCount()
     {
         $this->refill();
         $res = self::$conn->query('SELECT * FROM rt');
-        $this->assertEquals(8, $res->getCount());
+        $this->assertEquals(8, $res->count());
     }
 
     public function testFetchAllAssoc()
@@ -185,8 +189,26 @@ class ResultSetTest extends PHPUnit_Framework_TestCase
 
         $this->refill();
         $res = self::$conn->query('SELECT * FROM rt');
-        $this->assertSame($expect[0], $res->toNextRow()->fetchAssoc());
-        $this->assertSame($expect[1], $res->toNextRow()->fetchAssoc());
+        $this->assertSame($expect[0], $res->fetchAssoc());
+        $this->assertSame($expect[1], $res->fetchAssoc());
+        $res->fetchAssoc();
+        $res->fetchAssoc();
+        $res->fetchAssoc();
+        $res->fetchAssoc();
+        $res->fetchAssoc();
+        $res->fetchAssoc();
+        $this->assertNull($res->fetchAssoc());
+
+        $res = self::$conn->query('SELECT * FROM rt')->store();
+        $this->assertSame($expect[0], $res->fetchAssoc());
+        $this->assertSame($expect[1], $res->fetchAssoc());
+        $res->fetchAssoc();
+        $res->fetchAssoc();
+        $res->fetchAssoc();
+        $res->fetchAssoc();
+        $res->fetchAssoc();
+        $res->fetchAssoc();
+        $this->assertNull($res->fetchAssoc());
     }
 
     public function testFetchAllNum()
@@ -227,12 +249,26 @@ class ResultSetTest extends PHPUnit_Framework_TestCase
 
         $this->refill();
         $res = self::$conn->query('SELECT * FROM rt');
-        $this->assertSame($expect[0], $res->toNextRow()->fetchNum());
-        $this->assertSame($expect[1], $res->toNextRow()->fetchNum());
+        $this->assertSame($expect[0], $res->fetchNum());
+        $this->assertSame($expect[1], $res->fetchNum());
+        $res->fetchNum();
+        $res->fetchNum();
+        $res->fetchNum();
+        $res->fetchNum();
+        $res->fetchNum();
+        $res->fetchNum();
+        $this->assertNull($res->fetchNum());
 
         $res = self::$conn->query('SELECT * FROM rt')->store();
-        $this->assertSame($expect[0], $res->toNextRow()->fetchNum());
-        $this->assertSame($expect[1], $res->toNextRow()->fetchNum());
+        $this->assertSame($expect[0], $res->fetchNum());
+        $this->assertSame($expect[1], $res->fetchNum());
+        $res->fetchNum();
+        $res->fetchNum();
+        $res->fetchNum();
+        $res->fetchNum();
+        $res->fetchNum();
+        $res->fetchNum();
+        $this->assertNull($res->fetchNum());
     }
 
     public function testGetAffectedRows()
@@ -266,8 +302,7 @@ class ResultSetTest extends PHPUnit_Framework_TestCase
     {
         $this->refill();
         $res = self::$conn->query('SELECT * FROM rt');
-        $this->assertEquals($res->getCount(), $res->count());
-        $this->assertEquals($res->getCount(), count($res));
+        $this->assertEquals($res->count(), count($res));
     }
 
     public function testIterator()
